@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="author" content="Omar Derdare">
+    <meta name="description" content="StockMaster - a modern front-end stock management system, developed by Omar Derdare, Full Stack Developer.">
+    <title>StockMaster | Stock Management System</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Sidebar -->
+    <nav id="sidebar" aria-label="Main navigation">
+        <div class="sidebar-header">
+            <a class="navbar-brand" href="#" data-page="dashboard">
+                <i class="fas fa-boxes-stacked"></i> StockMaster
+            </a>
+            <small class="d-block mt-1 brand-sub" id="companyNameLabel">Stock Management</small>
+        </div>
+
+        <ul class="nav flex-column">
+            <li class="nav-item"><a class="nav-link active" href="#" data-page="dashboard"><i class="fas fa-gauge-high"></i> Dashboard</a></li>
+            <li class="nav-item"><a class="nav-link" href="#" data-page="products"><i class="fas fa-box"></i> Products</a></li>
+            <li class="nav-item"><a class="nav-link" href="#" data-page="addProduct"><i class="fas fa-plus-circle"></i> Add Product</a></li>
+            <li class="nav-item"><a class="nav-link" href="#" data-page="stockIn"><i class="fas fa-arrow-down-long"></i> Stock In</a></li>
+            <li class="nav-item"><a class="nav-link" href="#" data-page="stockOut"><i class="fas fa-arrow-up-long"></i> Stock Out</a></li>
+            <li class="nav-item"><a class="nav-link" href="#" data-page="movements"><i class="fas fa-right-left"></i> Movements</a></li>
+            <li class="nav-item"><a class="nav-link" href="#" data-page="suppliers"><i class="fas fa-truck-field"></i> Suppliers</a></li>
+            <li class="nav-item">
+                <a class="nav-link" href="#" data-page="lowStock"><i class="fas fa-triangle-exclamation"></i> Stock Alerts
+                    <span class="badge rounded-pill bg-danger ms-auto d-none" id="alertBadge">0</span>
+                </a>
+            </li>
+            <li class="nav-item"><a class="nav-link" href="#" data-page="reports"><i class="fas fa-chart-pie"></i> Reports</a></li>
+            <li class="nav-item"><a class="nav-link" href="#" data-page="settings"><i class="fas fa-gear"></i> Settings</a></li>
+            <li class="nav-item"><a class="nav-link" href="#" data-page="help"><i class="fas fa-circle-question"></i> Help</a></li>
+        </ul>
+
+        <div class="user-panel mt-auto">
+            <div class="dev-card">
+                <div class="dev-avatar">OD</div>
+                <div>
+                    <div class="dev-name">Omar Derdare</div>
+                    <div class="dev-role">Full Stack Developer</div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div id="page-content-wrapper">
+        <header class="topbar">
+            <button class="btn btn-light sidebar-toggler" type="button" id="sidebarToggle" aria-label="Toggle menu">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div class="topbar-title" id="topbarTitle">Dashboard</div>
+            <div class="ms-auto d-flex align-items-center gap-2">
+                <span class="text-muted small d-none d-md-inline" id="topbarDate"></span>
+                <button class="btn btn-outline-secondary btn-sm" type="button" id="themeToggle" title="Toggle dark mode" aria-label="Toggle dark mode">
+                    <i class="fas fa-moon"></i>
+                </button>
+            </div>
+        </header>
+
+        <main class="container-fluid" id="main-content"></main>
+
+        <footer class="footer mt-auto">
+            <div class="container-fluid px-4 py-4">
+                <div class="row gy-3 align-items-center">
+                    <div class="col-md-6">
+                        <h5 class="mb-1"><i class="fas fa-boxes-stacked me-2"></i>StockMaster</h5>
+                        <p class="mb-0 small">A fast, offline-ready stock management app. All data stays in your browser.</p>
+                    </div>
+                    <div class="col-md-6 text-md-end">
+                        <div class="small">Designed &amp; developed by <strong>Omar Derdare</strong></div>
+                        <div class="small opacity-75">Full Stack Developer</div>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom text-center p-3 small">
+                &copy; <span id="footerYear">2026</span> StockMaster &mdash; Developed by Omar Derdare. All rights reserved.
+            </div>
+        </footer>
+    </div>
+
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <script src="https://code.jquery.com/jquery-3.7.0.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="script.js"></script>
+</body>
+</html>

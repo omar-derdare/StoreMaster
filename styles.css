@@ -1,0 +1,187 @@
+/* StockMaster - styles | Developed by Omar Derdare, Full Stack Developer */
+:root {
+    --sidebar-width: 270px;
+    --sidebar-bg: #1b2430;
+    --sidebar-link-color: #9fb0c3;
+    --sidebar-link-hover-bg: #263243;
+    --sidebar-link-active-bg: #2f6fed;
+    --brand: #2f6fed;
+    --radius: 0.75rem;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bs-tertiary-bg);
+    display: flex;
+    min-height: 100vh;
+    overflow-x: hidden;
+}
+
+/* ---------- Sidebar ---------- */
+#sidebar {
+    width: var(--sidebar-width);
+    background-color: var(--sidebar-bg);
+    color: var(--sidebar-link-color);
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 1030;
+    padding-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    transition: margin-left 0.3s ease-in-out;
+    overflow-y: auto;
+}
+
+#sidebar .sidebar-header {
+    padding: 1rem 1.5rem;
+    text-align: center;
+    margin-bottom: 0.75rem;
+    border-bottom: 1px solid #2c394b;
+}
+
+#sidebar .navbar-brand {
+    color: #fff;
+    font-size: 1.5rem;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+#sidebar .navbar-brand i { margin-right: 10px; color: #5b9bff; }
+#sidebar .brand-sub { color: var(--sidebar-link-color); font-size: 0.75rem; }
+
+#sidebar .nav-link {
+    padding: 0.7rem 1.5rem;
+    color: var(--sidebar-link-color);
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    border-left: 3px solid transparent;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+
+#sidebar .nav-link i { margin-right: 12px; width: 20px; text-align: center; }
+#sidebar .nav-link:hover { background-color: var(--sidebar-link-hover-bg); color: #fff; }
+#sidebar .nav-link.active {
+    background-color: var(--sidebar-link-active-bg);
+    color: #fff;
+    font-weight: 600;
+    border-left-color: #fff;
+}
+
+#sidebar .user-panel { padding: 1rem 1.25rem; border-top: 1px solid #2c394b; }
+.dev-card { display: flex; align-items: center; gap: 0.75rem; }
+.dev-avatar {
+    width: 42px; height: 42px; border-radius: 50%;
+    background: linear-gradient(135deg, #2f6fed, #7c4dff);
+    color: #fff; font-weight: 700; display: grid; place-items: center; letter-spacing: 0.5px;
+}
+.dev-name { color: #fff; font-weight: 600; font-size: 0.9rem; line-height: 1.1; }
+.dev-role { font-size: 0.75rem; color: var(--sidebar-link-color); }
+
+/* ---------- Layout ---------- */
+#page-content-wrapper {
+    width: 100%;
+    min-height: 100vh;
+    padding-left: var(--sidebar-width);
+    display: flex;
+    flex-direction: column;
+    transition: padding-left 0.3s ease-in-out;
+}
+
+.topbar {
+    position: sticky; top: 0; z-index: 1020;
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 0.75rem 2rem;
+    background: var(--bs-body-bg);
+    border-bottom: 1px solid var(--bs-border-color);
+}
+.topbar-title { font-weight: 600; font-size: 1.05rem; }
+
+.sidebar-toggler { display: none; }
+
+@media (max-width: 991.98px) {
+    #sidebar { margin-left: calc(-1 * var(--sidebar-width)); }
+    #sidebar.active { margin-left: 0; }
+    #page-content-wrapper { padding-left: 0; }
+    .sidebar-toggler { display: inline-block; }
+    .topbar { padding: 0.75rem 1rem; }
+    #main-content { padding: 1rem !important; }
+}
+
+#main-content { flex-grow: 1; padding: 2rem; }
+
+.sidebar-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.5); z-index: 1029;
+}
+
+/* ---------- Content ---------- */
+.content-section {
+    background-color: var(--bs-body-bg);
+    padding: 1.75rem;
+    border-radius: var(--radius);
+    box-shadow: 0 2px 14px rgba(0, 0, 0, 0.06);
+    margin-bottom: 1.5rem;
+    animation: fadeUp 0.35s ease both;
+}
+
+.section-title {
+    font-size: 1.35rem; font-weight: 700; margin-bottom: 1.25rem;
+    padding-bottom: 0.5rem; border-bottom: 2px solid var(--brand); display: inline-block;
+}
+
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+}
+
+/* ---------- Dashboard cards ---------- */
+.stat-card {
+    border: none; border-radius: var(--radius); color: #fff;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+    cursor: pointer;
+}
+.stat-card:hover { transform: translateY(-4px); box-shadow: 0 10px 20px rgba(0, 0, 0, 0.16); }
+.stat-card .card-body { display: flex; align-items: center; justify-content: space-between; }
+.stat-card .stat-icon { font-size: 2.6rem; opacity: 0.75; }
+.stat-card .stat-label { font-size: 0.85rem; opacity: 0.9; margin-bottom: 0.15rem; }
+.stat-card .stat-value { font-size: 1.7rem; font-weight: 700; margin: 0; }
+
+.bg-grad-blue { background: linear-gradient(135deg, #2f6fed, #5b9bff); }
+.bg-grad-green { background: linear-gradient(135deg, #159a63, #3fcf95); }
+.bg-grad-orange { background: linear-gradient(135deg, #f08c00, #ffc247); }
+.bg-grad-red { background: linear-gradient(135deg, #d6336c, #ff7a8a); }
+.bg-grad-purple { background: linear-gradient(135deg, #6f42c1, #a78bfa); }
+
+.chart-box { position: relative; height: 300px; }
+
+/* ---------- Tables / forms ---------- */
+.table thead th { font-weight: 600; white-space: nowrap; }
+.product-name { font-weight: 600; }
+.product-sku { font-size: 0.78rem; color: var(--bs-secondary-color); }
+.qty-pill { font-weight: 700; font-variant-numeric: tabular-nums; }
+.btn-icon { width: 32px; height: 32px; padding: 0; display: inline-grid; place-items: center; }
+.form-label { font-weight: 500; }
+
+.stock-bar { height: 6px; border-radius: 4px; background: var(--bs-secondary-bg); overflow: hidden; min-width: 70px; }
+.stock-bar > span { display: block; height: 100%; border-radius: 4px; }
+
+.faq-item {
+    background-color: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.5rem; margin-bottom: 1rem; padding: 1.25rem 1.5rem;
+}
+.faq-question { font-size: 1.05rem; font-weight: 600; color: var(--brand); margin-bottom: 0.5rem; }
+.faq-answer { color: var(--bs-secondary-color); line-height: 1.6; }
+
+/* ---------- Footer ---------- */
+.footer { background-color: var(--sidebar-bg); color: #e9eef5; }
+.footer-bottom { background-color: rgba(0, 0, 0, 0.25); }
+
+/* ---------- Print ---------- */
+@media print {
+    #sidebar, .topbar, .footer, .no-print { display: none !important; }
+    #page-content-wrapper { padding-left: 0; }
+    .content-section { box-shadow: none; }
+}
