@@ -9,8 +9,9 @@ const STORAGE_KEY = 'stockmaster_v1';
 const THEME_KEY = 'stockmaster_theme';
 
 /* ---------- Date helpers ---------- */
-const todayStr = () => new Date().toISOString().split('T')[0];
-const daysAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().split('T')[0]; };
+const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const todayStr = () => ymd(new Date());
+const daysAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return ymd(d); };
 
 /* ---------- Seed (demo) data ---------- */
 function seedData() {
@@ -98,7 +99,7 @@ function toast(title, icon = 'success') {
     Swal.fire({ toast: true, position: 'top-end', icon, title, showConfirmButton: false, timer: 2600, timerProgressBar: true });
 }
 function alertBox(title, text, icon = 'info') {
-    Swal.fire({ title, text, icon, confirmButtonColor: '#2f6fed' });
+    Swal.fire({ title, text, icon, confirmButtonColor: '#ff8a1f' });
 }
 function confirmBox(title, text, confirmText = 'Yes') {
     return Swal.fire({ title, text, icon: 'warning', showCancelButton: true, confirmButtonColor: '#d6336c', cancelButtonColor: '#6c757d', confirmButtonText: confirmText });
@@ -169,34 +170,22 @@ sidebarToggle.addEventListener('click', () => {
 });
 sidebarOverlay.addEventListener('click', closeSidebar);
 
-function applyTheme(theme) {
-    document.documentElement.setAttribute('data-bs-theme', theme);
-    document.querySelector('#themeToggle i').className = theme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
-    Chart.defaults.color = theme === 'dark' ? '#b8c2cc' : '#495057';
-    Chart.defaults.borderColor = theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)';
-}
-(function initTheme() {
-    let theme = 'light';
-    try { theme = localStorage.getItem(THEME_KEY) || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); } catch (e) { /* ignore */ }
-    applyTheme(theme);
-})();
-document.getElementById('themeToggle').addEventListener('click', () => {
-    const next = document.documentElement.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
-    try { localStorage.setItem(THEME_KEY, next); } catch (e) { /* ignore */ }
-    applyTheme(next);
-    navigateTo(currentPage, currentParams, true);
-});
+Chart.defaults.color = '#cdbfae';
+Chart.defaults.borderColor = 'rgba(255,255,255,0.08)';
+Chart.defaults.font.family = "'Inter', sans-serif";
 
 /* ---------- Charts ---------- */
 let charts = [];
 function destroyCharts() { charts.forEach((c) => c.destroy()); charts = []; }
 function makeChart(id, config) {
     const el = document.getElementById(id);
-    if (!el) return;
+    if (!el) return null;
     config.options = Object.assign({ responsive: true, maintainAspectRatio: false }, config.options);
-    charts.push(new Chart(el.getContext('2d'), config));
+    const chart = new Chart(el.getContext('2d'), config);
+    charts.push(chart);
+    return chart;
 }
-const PALETTE = ['#2f6fed', '#159a63', '#f08c00', '#d6336c', '#6f42c1', '#0dcaf0', '#fd7e14', '#20c997'];
+const PALETTE = ['#ff8a1f', '#ffd166', '#ef476f', '#06d6a0', '#8d7bff', '#4cc9f0', '#ff5a36', '#c9b9a6'];
 
 function lastNDays(n) {
     const out = [];
@@ -215,102 +204,181 @@ function initTable(selector, options = {}) {
    ========================================================================== */
 
 /* ---------- Dashboard ---------- */
-function renderDashboard() {
-    const s = computeStats();
-    const alerts = state.products.filter((p) => stockStatus(p).key !== 'ok')
-        .sort((a, b) => a.quantity - b.quantity).slice(0, 5);
-    const recent = [...state.movements].sort((a, b) => (b.date + b.id).localeCompare(a.date + a.id)).slice(0, 6);
+function flowData(range) {
+    const sum = (type, test) => state.movements.filter((m) => m.type === type && test(m.date)).reduce((a, m) => a + m.qty, 0);
+    if (range === 'months') {
+        const months = [];
+        for (let i = 5; i >= 0; i--) { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i); months.push(ymd(d).slice(0, 7)); }
+        return {
+            labels: months.map((m) => new Date(m + '-01T00:00:00').toLocaleDateString(undefined, { month: 'short' })),
+            inn: months.map((m) => sum('in', (d) => d.startsWith(m))),
+            out: months.map((m) => sum('out', (d) => d.startsWith(m)))
+        };
+    }
+    const days = lastNDays(range === '30' ? 30 : 7);
+    return {
+        labels: days.map((d) => new Date(d + 'T00:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short' })),
+        inn: days.map((d) => sum('in', (x) => x === d)),
+        out: days.map((d) => sum('out', (x) => x === d))
+    };
+}
 
-    const alertRows = alerts.length ? alerts.map((p) => {
-        const st = stockStatus(p);
-        return `<tr><td><div class="product-name">${esc(p.name)}</div><div class="product-sku">${esc(p.sku)}</div></td>
-            <td class="qty-pill">${p.quantity} / ${p.minStock}</td>
-            <td><span class="badge bg-${st.cls}">${st.label}</span></td>
-            <td class="text-end"><button class="btn btn-sm btn-primary" data-page="stockIn" data-params='${JSON.stringify({ productId: p.id })}'><i class="fas fa-plus"></i> Restock</button></td></tr>`;
-    }).join('') : `<tr><td colspan="4" class="text-center text-muted py-3"><i class="fas fa-circle-check text-success me-1"></i>All products are well stocked.</td></tr>`;
-
-    const recentRows = recent.length ? recent.map((m) => {
-        const p = productById(m.productId);
-        return `<tr><td>${esc(p ? p.name : 'Deleted product')}</td>
-            <td><span class="badge bg-${m.type === 'in' ? 'success' : 'danger'}">${m.type === 'in' ? 'IN' : 'OUT'}</span></td>
-            <td class="qty-pill">${m.type === 'in' ? '+' : '-'}${m.qty}</td><td>${fmtDate(m.date)}</td></tr>`;
-    }).join('') : `<tr><td colspan="4" class="text-center text-muted py-3">No movements yet.</td></tr>`;
-
-    mainContent.innerHTML = `
-        <div class="content-section">
-            <h2 class="section-title"><i class="fas fa-gauge-high me-2"></i>Dashboard Overview</h2>
-            <div class="row g-4">
-                ${statCard('Products', s.products, 'fa-box', 'bg-grad-blue', 'products')}
-                ${statCard('Units in Stock', s.units.toLocaleString(), 'fa-cubes', 'bg-grad-green', 'products')}
-                ${statCard('Stock Value (cost)', money(s.costValue), 'fa-coins', 'bg-grad-purple', 'reports')}
-                ${statCard('Low Stock', s.low, 'fa-triangle-exclamation', 'bg-grad-orange', 'lowStock')}
-                ${statCard('Out of Stock', s.out, 'fa-ban', 'bg-grad-red', 'lowStock')}
-                ${statCard('Suppliers', s.suppliers, 'fa-truck-field', 'bg-grad-blue', 'suppliers')}
-                ${statCard('Retail Value', money(s.retailValue), 'fa-tags', 'bg-grad-green', 'reports')}
-                ${statCard('Potential Profit', money(s.retailValue - s.costValue), 'fa-chart-line', 'bg-grad-purple', 'reports')}
-            </div>
-        </div>
-
-        <div class="row g-4">
-            <div class="col-xl-8">
-                <div class="content-section h-100">
-                    <h2 class="section-title"><i class="fas fa-right-left me-2"></i>Last 7 Days Movements</h2>
-                    <div class="chart-box"><canvas id="weekChart"></canvas></div>
-                </div>
-            </div>
-            <div class="col-xl-4">
-                <div class="content-section h-100">
-                    <h2 class="section-title"><i class="fas fa-chart-pie me-2"></i>Value by Category</h2>
-                    <div class="chart-box"><canvas id="categoryChart"></canvas></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="row g-4">
-            <div class="col-xl-6">
-                <div class="content-section h-100">
-                    <h2 class="section-title"><i class="fas fa-triangle-exclamation me-2"></i>Needs Attention</h2>
-                    <div class="table-responsive"><table class="table table-hover align-middle mb-0">
-                        <thead><tr><th>Product</th><th>Qty / Min</th><th>Status</th><th></th></tr></thead><tbody>${alertRows}</tbody></table></div>
-                </div>
-            </div>
-            <div class="col-xl-6">
-                <div class="content-section h-100">
-                    <h2 class="section-title"><i class="fas fa-clock-rotate-left me-2"></i>Recent Movements</h2>
-                    <div class="table-responsive"><table class="table table-hover align-middle mb-0">
-                        <thead><tr><th>Product</th><th>Type</th><th>Qty</th><th>Date</th></tr></thead><tbody>${recentRows}</tbody></table></div>
-                </div>
-            </div>
-        </div>`;
-
-    const days = lastNDays(7);
-    const sumFor = (type, d) => state.movements.filter((m) => m.type === type && m.date === d).reduce((a, m) => a + m.qty, 0);
-    makeChart('weekChart', {
-        type: 'bar',
+let flowChart = null;
+function drawFlowChart(range) {
+    if (!document.getElementById('flowChart')) return;
+    if (flowChart) { flowChart.destroy(); charts = charts.filter((c) => c !== flowChart); }
+    const d = flowData(range);
+    const fill = (ctx) => {
+        const area = ctx.chart.chartArea;
+        if (!area) return 'rgba(255,138,31,0.2)';
+        const g = ctx.chart.ctx.createLinearGradient(0, area.top, 0, area.bottom);
+        g.addColorStop(0, 'rgba(255,138,31,0.45)');
+        g.addColorStop(1, 'rgba(255,138,31,0)');
+        return g;
+    };
+    flowChart = makeChart('flowChart', {
+        type: 'line',
         data: {
-            labels: days.map((d) => fmtDate(d)),
+            labels: d.labels,
             datasets: [
-                { label: 'Stock In', data: days.map((d) => sumFor('in', d)), backgroundColor: 'rgba(21,154,99,0.8)', borderRadius: 4 },
-                { label: 'Stock Out', data: days.map((d) => sumFor('out', d)), backgroundColor: 'rgba(214,51,108,0.8)', borderRadius: 4 }
+                { label: 'Stock In', data: d.inn, borderColor: '#ff8a1f', backgroundColor: fill, fill: true, tension: 0.45, borderWidth: 3, pointRadius: 0, pointHoverRadius: 6, pointHoverBackgroundColor: '#fff', pointHoverBorderColor: '#ff8a1f', pointHoverBorderWidth: 3 },
+                { label: 'Stock Out', data: d.out, borderColor: 'rgba(255,255,255,0.92)', backgroundColor: 'transparent', tension: 0.45, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 6, pointHoverBackgroundColor: '#ff8a1f', pointHoverBorderColor: '#fff', pointHoverBorderWidth: 3 }
             ]
         },
-        options: { scales: { y: { beginAtZero: true } }, plugins: { legend: { position: 'top' } } }
-    });
-
-    const byCat = {};
-    state.products.forEach((p) => { byCat[p.category || 'Uncategorized'] = (byCat[p.category || 'Uncategorized'] || 0) + p.quantity * p.cost; });
-    makeChart('categoryChart', {
-        type: 'doughnut',
-        data: { labels: Object.keys(byCat), datasets: [{ data: Object.values(byCat), backgroundColor: PALETTE, borderWidth: 0 }] },
-        options: { plugins: { legend: { position: 'bottom' } } }
+        options: {
+            interaction: { mode: 'index', intersect: false },
+            scales: {
+                y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.06)' }, border: { display: false } },
+                x: { grid: { display: false }, border: { display: false }, ticks: { maxTicksLimit: 8 } }
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: { backgroundColor: 'rgba(20,14,9,0.92)', borderColor: 'rgba(255,255,255,0.18)', borderWidth: 1, padding: 10, cornerRadius: 10, boxPadding: 4 }
+            }
+        }
     });
 }
 
-function statCard(label, value, icon, bg, page) {
-    return `<div class="col-xl-3 col-md-6">
-        <div class="card stat-card ${bg} h-100" data-page="${page}" role="button">
-            <div class="card-body"><div><div class="stat-label">${label}</div><p class="stat-value">${value}</p></div><div class="stat-icon"><i class="fas ${icon}"></i></div></div>
-        </div></div>`;
+function renderDashboard() {
+    const s = computeStats();
+    const total = state.products.length;
+    const target = state.settings.valueTarget || 100000;
+    const pct = Math.min(100, Math.round((s.costValue / target) * 100));
+    const healthy = total ? Math.round(((total - s.low - s.out) / total) * 100) : 0;
+    const linked = total ? Math.round((state.products.filter((p) => supplierById(p.supplierId)).length / total) * 100) : 0;
+    const latest = [...state.movements].sort((a, b) => (b.date + String(b.id).padStart(8, '0')).localeCompare(a.date + String(a.id).padStart(8, '0')))[0];
+    const lp = latest ? productById(latest.productId) : null;
+
+    const byCat = {};
+    state.products.forEach((p) => { const c = p.category || 'Uncategorized'; byCat[c] = (byCat[c] || 0) + p.quantity * p.cost; });
+    const topCats = Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 3);
+    const legend = topCats.map(([c], i) => `<span><i style="color:${PALETTE[i]};background:${PALETTE[i]}"></i>${esc(c)}</span>`).join('');
+
+    const now = new Date();
+    const mmyy = `${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getFullYear()).slice(2)}`;
+
+    mainContent.innerHTML = `
+        <div class="row g-4">
+            <div class="col-xl-8">
+                <h1 class="dash-title">My <span>Dashboard</span></h1>
+
+                <div class="stat-bar glass">
+                    <div class="stat-item" data-page="reports"><div class="stat-ico"><i class="fas fa-coins"></i></div><div><div class="stat-label">Stock Value</div><div class="stat-value count" data-to="${s.costValue}" data-fmt="money">${money(s.costValue)}</div></div></div>
+                    <div class="stat-item" data-page="products"><div class="stat-ico"><i class="fas fa-cubes"></i></div><div><div class="stat-label">Units in Stock</div><div class="stat-value count" data-to="${s.units}" data-fmt="int">${s.units.toLocaleString()}</div></div></div>
+                    <div class="stat-item" data-page="reports"><div class="stat-ico"><i class="fas fa-chart-line"></i></div><div><div class="stat-label">Potential Profit</div><div class="stat-value count" data-to="${s.retailValue - s.costValue}" data-fmt="money">${money(s.retailValue - s.costValue)}</div></div></div>
+                </div>
+
+                <div class="glass panel mb-4 tilt-soft">
+                    <div class="panel-head">
+                        <div>
+                            <div class="mini-title">Statistic</div>
+                            <div class="mini-sub">Stock in vs stock out &middot; <span style="color:var(--accent)">&#9679;</span> In &nbsp;<span>&#9679;</span> Out</div>
+                        </div>
+                        <select id="flowRange" class="form-select form-select-sm glass-select" aria-label="Range">
+                            <option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="months">Last 6 months</option>
+                        </select>
+                    </div>
+                    ${legend ? `<div class="legend-row mb-2"><span class="me-1">Top categories by value:</span>${legend}</div>` : ''}
+                    <div class="chart-box"><canvas id="flowChart"></canvas></div>
+                </div>
+
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <div class="glass panel h-100">
+                            <div class="mini-title mb-3">Stock Goals</div>
+                            <div class="d-flex gap-3">
+                                <div class="goal"><div class="goal-pct count" data-to="${healthy}" data-fmt="pct">${healthy}%</div><div class="bar mt-2"><span style="--w:${healthy}%"></span></div><div class="goal-name">Healthy stock</div></div>
+                                <div class="goal"><div class="goal-pct count" data-to="${linked}" data-fmt="pct">${linked}%</div><div class="bar mt-2"><span style="--w:${linked}%"></span></div><div class="goal-name">Supplier linked</div></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="glass panel h-100">
+                            <div class="panel-head"><div class="mini-title mb-0">Inventory Target</div><button class="target-pill" id="targetBtn" title="Edit target">${money(target)}</button></div>
+                            <div class="d-flex align-items-center justify-content-between gap-3">
+                                <div class="flex-grow-1">
+                                    <div class="mini-sub">Total stock value</div>
+                                    <div class="fw-bold fs-5">${money(s.costValue)}</div>
+                                    <div class="bar mt-2"><span style="--w:${pct}%"></span></div>
+                                </div>
+                                <div class="ring" style="--p:${pct}"><span>${pct}%</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-4">
+                <div class="glass profile tilt-soft">
+                    <div class="avatar-big">OD</div>
+                    <div class="chip"><i class="fas fa-code me-1"></i>Full Stack Developer</div>
+                    <div class="profile-name">Omar Derdare</div>
+                    <div class="mini-sub">${s.low + s.out ? `${s.low + s.out} product(s) need attention` : 'Everything is well stocked'}</div>
+
+                    <div class="quick">
+                        <button data-page="addProduct"><span class="q-ico"><i class="fas fa-plus"></i></span>Add</button>
+                        <button data-page="stockIn"><span class="q-ico"><i class="fas fa-arrow-down-long"></i></span>Receive</button>
+                        <button data-page="stockOut"><span class="q-ico"><i class="fas fa-arrow-up-long"></i></span>Issue</button>
+                        <button data-page="lowStock"><span class="q-ico"><i class="fas fa-bell"></i></span>Alerts</button>
+                    </div>
+
+                    <div class="stock-card-wrap">
+                        <div class="stock-card tilt">
+                            <div class="sc-top"><span>${esc(state.settings.company)}</span><span class="sc-brand">Stock</span></div>
+                            <div class="sc-bottom">
+                                <div><div style="opacity:.8">Updated</div><div class="fw-semibold">${mmyy}</div><div style="opacity:.8" class="mt-1">${s.products} products</div></div>
+                                <div class="text-end"><div style="opacity:.8">Total Balance</div><div class="sc-value count" data-to="${s.costValue}" data-fmt="money">${money(s.costValue)}</div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <h5 class="fw-bold mt-4 mb-3 ps-1">Latest Movement</h5>
+                <div class="glass tx-card">
+                    ${latest ? `<div class="tx-row">
+                        <div class="tx-avatar ${latest.type === 'in' ? 'tx-in' : 'tx-out'}"><i class="fas ${latest.type === 'in' ? 'fa-arrow-down-long' : 'fa-arrow-up-long'}"></i></div>
+                        <div class="min-w-0"><div class="fw-semibold text-truncate">${esc(lp ? lp.name : 'Deleted product')}</div><div class="mini-sub">${fmtDate(latest.date)} &middot; ${esc(latest.party || latest.reference || (latest.type === 'in' ? 'Received' : 'Issued'))}</div></div>
+                        <div class="tx-pill">${latest.type === 'in' ? '+' : '-'}${latest.qty}</div>
+                    </div>` : '<div class="text-center text-muted-soft py-2">No movements yet.</div>'}
+                </div>
+                <button class="see-all" data-page="movements"><span>See all movements</span><span class="arrow"><i class="fas fa-arrow-right"></i></span></button>
+            </div>
+        </div>`;
+
+    drawFlowChart('7');
+    document.getElementById('flowRange').addEventListener('change', (e) => drawFlowChart(e.target.value));
+    document.getElementById('targetBtn').addEventListener('click', async () => {
+        const r = await Swal.fire({
+            title: 'Inventory value target', input: 'number', inputValue: target, inputAttributes: { min: 1, step: 1 },
+            showCancelButton: true, confirmButtonText: 'Save', confirmButtonColor: '#ff8a1f',
+            inputValidator: (v) => (!(+v > 0) ? 'Enter a number greater than 0' : undefined)
+        });
+        if (!r.isConfirmed) return;
+        state.settings.valueTarget = +r.value;
+        saveState();
+        renderDashboard();
+    });
+    animateCounts();
 }
 
 /* ---------- Products ---------- */
@@ -386,7 +454,7 @@ function viewProduct(id) {
             <p class="mb-1"><strong>Quantity:</strong> ${p.quantity} ${esc(p.unit)} (min ${p.minStock})</p>
             <p class="mb-2"><strong>Description:</strong> ${esc(p.description || '-')}</p>
             <hr><h6>Latest movements</h6>${histHtml}</div>`,
-        width: 560, confirmButtonText: 'Close', confirmButtonColor: '#2f6fed'
+        width: 560, confirmButtonText: 'Close', confirmButtonColor: '#ff8a1f'
     });
 }
 
@@ -659,7 +727,7 @@ function supplierDialog(id) {
                <input id="swEmail" type="email" class="swal2-input" placeholder="Email" value="${esc(s ? s.email : '')}">
                <input id="swPhone" class="swal2-input" placeholder="Phone" value="${esc(s ? s.phone : '')}">
                <input id="swCity" class="swal2-input" placeholder="City" value="${esc(s ? s.city : '')}">`,
-        focusConfirm: false, showCancelButton: true, confirmButtonText: 'Save', confirmButtonColor: '#2f6fed',
+        focusConfirm: false, showCancelButton: true, confirmButtonText: 'Save', confirmButtonColor: '#ff8a1f',
         preConfirm: () => {
             const name = document.getElementById('swName').value.trim();
             const email = document.getElementById('swEmail').value.trim();
@@ -760,7 +828,7 @@ function renderReports() {
     const top = [...state.products].sort((a, b) => b.quantity * b.cost - a.quantity * a.cost).slice(0, 8);
     makeChart('topValueChart', {
         type: 'bar',
-        data: { labels: top.map((p) => p.name), datasets: [{ label: 'Value (cost)', data: top.map((p) => +(p.quantity * p.cost).toFixed(2)), backgroundColor: '#2f6fed', borderRadius: 4 }] },
+        data: { labels: top.map((p) => p.name), datasets: [{ label: 'Value (cost)', data: top.map((p) => +(p.quantity * p.cost).toFixed(2)), backgroundColor: '#ff8a1f', borderRadius: 6 }] },
         options: { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true } } }
     });
 
@@ -773,7 +841,7 @@ function renderReports() {
     });
 
     const months = [];
-    for (let i = 5; i >= 0; i--) { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i); months.push(d.toISOString().slice(0, 7)); }
+    for (let i = 5; i >= 0; i--) { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i); months.push(ymd(d).slice(0, 7)); }
     const monthSum = (type, ym) => state.movements.filter((m) => m.type === type && m.date.startsWith(ym)).reduce((a, m) => a + m.qty, 0);
     makeChart('monthlyChart', {
         type: 'line',
@@ -916,6 +984,9 @@ function refreshChrome() {
     const badge = document.getElementById('alertBadge');
     badge.textContent = alerts;
     badge.classList.toggle('d-none', alerts === 0);
+    const bell = document.getElementById('bellBadge');
+    bell.textContent = alerts;
+    bell.classList.toggle('d-none', alerts === 0);
     document.getElementById('companyNameLabel').textContent = state.settings.company;
     document.title = `StockMaster | ${state.settings.company}`;
 }
@@ -944,6 +1015,81 @@ document.addEventListener('click', (event) => {
     if (el.dataset.params) { try { params = JSON.parse(el.dataset.params); } catch (e) { /* ignore */ } }
     navigateTo(el.dataset.page, params);
 });
+
+/* ==========================================================================
+   MAGIC EFFECTS: count-up numbers, cursor spotlight, 3D tilt, floating dust
+   ========================================================================== */
+const reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function animateCounts() {
+    document.querySelectorAll('.count').forEach((el) => {
+        const to = +el.dataset.to;
+        const fmt = el.dataset.fmt;
+        const f = (v) => (fmt === 'money' ? money(v) : fmt === 'pct' ? Math.round(v) + '%' : Math.round(v).toLocaleString());
+        if (reduceMotion || !Number.isFinite(to)) { el.textContent = f(to || 0); return; }
+        const t0 = performance.now();
+        const step = (t) => {
+            const k = Math.min(1, (t - t0) / 1000);
+            el.textContent = f(to * (1 - Math.pow(1 - k, 3)));
+            if (k < 1) requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+    });
+}
+
+document.addEventListener('pointermove', (e) => {
+    const g = e.target.closest && e.target.closest('.glass, .content-section');
+    if (g) {
+        const r = g.getBoundingClientRect();
+        g.style.setProperty('--mx', (e.clientX - r.left) + 'px');
+        g.style.setProperty('--my', (e.clientY - r.top) + 'px');
+    }
+    if (reduceMotion) return;
+    const t = e.target.closest && e.target.closest('.tilt');
+    if (t) {
+        const r = t.getBoundingClientRect();
+        const x = (e.clientX - r.left) / r.width - 0.5;
+        const y = (e.clientY - r.top) / r.height - 0.5;
+        t.style.transform = `perspective(700px) rotateY(${x * 14}deg) rotateX(${-y * 14}deg) scale(1.03)`;
+    }
+});
+document.addEventListener('pointerout', (e) => {
+    const t = e.target.closest && e.target.closest('.tilt');
+    if (t && !t.contains(e.relatedTarget)) t.style.transform = '';
+});
+
+(function initDust() {
+    const canvas = document.getElementById('dust');
+    if (!canvas || reduceMotion) return;
+    const ctx = canvas.getContext('2d');
+    let w = 0, h = 0, parts = [];
+    const resize = () => {
+        w = canvas.width = window.innerWidth;
+        h = canvas.height = window.innerHeight;
+        const count = Math.min(70, Math.round((w * h) / 26000));
+        parts = Array.from({ length: count }, () => ({
+            x: Math.random() * w, y: Math.random() * h, r: Math.random() * 1.8 + 0.4,
+            vx: (Math.random() - 0.5) * 0.15, vy: -(Math.random() * 0.35 + 0.08), a: Math.random() * Math.PI * 2, s: Math.random() * 0.02 + 0.005
+        }));
+    };
+    resize();
+    window.addEventListener('resize', resize);
+    (function loop() {
+        ctx.clearRect(0, 0, w, h);
+        for (const p of parts) {
+            p.x += p.vx; p.y += p.vy; p.a += p.s;
+            if (p.y < -10) { p.y = h + 10; p.x = Math.random() * w; }
+            const alpha = 0.25 + 0.45 * Math.abs(Math.sin(p.a));
+            ctx.beginPath();
+            ctx.fillStyle = `rgba(255,190,110,${alpha})`;
+            ctx.shadowColor = 'rgba(255,150,40,0.9)';
+            ctx.shadowBlur = 8;
+            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        requestAnimationFrame(loop);
+    })();
+})();
 
 /* ---------- Init ---------- */
 document.addEventListener('DOMContentLoaded', () => {
